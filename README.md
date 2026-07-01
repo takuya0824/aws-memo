@@ -15,6 +15,10 @@ ZennやQiitaに投稿する前の技術記事下書きをMarkdownで管理する
 | IaC | CloudFormation |
 | CI/CD | GitHub Actions |
 
+## アーキテクチャ構成図
+
+[architecture.drawio](./architecture.drawio) を [draw.io](https://app.diagrams.net/) で開いて確認できます。
+
 ## インフラ構成
 
 ```
