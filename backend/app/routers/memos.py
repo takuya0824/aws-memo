@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.auth import get_current_user
@@ -7,8 +8,15 @@ from app import models, schemas
 router = APIRouter()
 
 @router.get("/", response_model=list[schemas.MemoResponse])
-def list_memos(db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
-    return db.query(models.Memo).filter(models.Memo.user_id == user_id).order_by(models.Memo.updated_at.desc()).all()
+def list_memos(
+    published: Optional[bool] = Query(None),
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user),
+):
+    query = db.query(models.Memo).filter(models.Memo.user_id == user_id)
+    if published is not None:
+        query = query.filter(models.Memo.published == published)
+    return query.order_by(models.Memo.updated_at.desc()).all()
 
 @router.get("/{memo_id}", response_model=schemas.MemoResponse)
 def get_memo(memo_id: int, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
