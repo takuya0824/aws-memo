@@ -7,11 +7,8 @@ on:
     paths:
       - "backend/**"
 
-env:
-  AWS_REGION: ap-northeast-1
-  ECR_URI: 975050183368.dkr.ecr.ap-northeast-1.amazonaws.com/aws-memo-backend
-  ECS_CLUSTER: aws-memo-cluster
-  ECS_SERVICE: aws-memo-service
+permissions:
+  contents: read
 
 jobs:
   deploy:
@@ -24,7 +21,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ap-northeast-1
 
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -34,22 +31,22 @@ jobs:
           docker buildx build \
             --platform linux/amd64 \
             --provenance=false \
-            -t $ECR_URI:${{ github.sha }} \
-            -t $ECR_URI:latest \
+            -t ${{ secrets.ECR_URI }}:${{ github.sha }} \
+            -t ${{ secrets.ECR_URI }}:latest \
             --push \
             ./backend
 
       - name: Force ECS redeployment
         run: |
           aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --service ${{ secrets.ECS_SERVICE }} \
             --force-new-deployment \
-            --region $AWS_REGION
+            --region ap-northeast-1
 
       - name: Wait for deployment
         run: |
           aws ecs wait services-stable \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --region $AWS_REGION
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --services ${{ secrets.ECS_SERVICE }} \
+            --region ap-northeast-1

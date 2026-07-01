@@ -147,10 +147,6 @@ aws cloudformation deploy \
   --region ap-northeast-1
 ```
 
-作成されたリソース:
-- User Pool ID: `ap-northeast-1_e898oVQCp`
-- Client ID: `58tafdqt6u8l6ua2do3dftven9`
-
 #### 3. RDS
 
 ```bash
@@ -161,9 +157,6 @@ aws cloudformation deploy \
   --parameter-overrides DBPassword=<your-password>
 ```
 
-作成されたリソース:
-- エンドポイント: `aws-memo-db.clc4ooiegjgx.ap-northeast-1.rds.amazonaws.com`
-
 #### 4. ECR
 
 ```bash
@@ -173,22 +166,19 @@ aws cloudformation deploy \
   --region ap-northeast-1
 ```
 
-作成されたリソース:
-- ECR URI: `975050183368.dkr.ecr.ap-northeast-1.amazonaws.com/aws-memo-backend`
-
 #### 5. バックエンドイメージのビルド & ECR へのプッシュ
 
 ```bash
-# ECR ログイン
+# ECR ログイン（<account-id> は自身の AWS アカウント ID）
 aws ecr get-login-password --region ap-northeast-1 \
   | docker login --username AWS --password-stdin \
-    975050183368.dkr.ecr.ap-northeast-1.amazonaws.com
+    <account-id>.dkr.ecr.ap-northeast-1.amazonaws.com
 
 # linux/amd64 でビルドしてプッシュ（ECS Fargate 要件）
 docker buildx build \
   --platform linux/amd64 \
   --provenance=false \
-  -t 975050183368.dkr.ecr.ap-northeast-1.amazonaws.com/aws-memo-backend:latest \
+  -t <account-id>.dkr.ecr.ap-northeast-1.amazonaws.com/aws-memo-backend:latest \
   --push \
   ./backend
 ```
@@ -202,12 +192,9 @@ aws cloudformation deploy \
   --region ap-northeast-1 \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
-    ECRImageUri=975050183368.dkr.ecr.ap-northeast-1.amazonaws.com/aws-memo-backend:latest \
+    ECRImageUri=<account-id>.dkr.ecr.ap-northeast-1.amazonaws.com/aws-memo-backend:latest \
     DBPassword=<your-password>
 ```
-
-作成されたリソース:
-- ALB DNS: `aws-memo-alb-1788609582.ap-northeast-1.elb.amazonaws.com`
 
 #### 7. ECS タスクの強制再デプロイ（イメージ更新時）
 
@@ -230,22 +217,14 @@ aws cloudformation deploy \
   --region ap-northeast-1
 ```
 
-作成されたリソース:
-- S3 バケット: `aws-memo-frontend-975050183368`
-- CloudFront ドメイン: `d36dhlgyn71g4.cloudfront.net`
-- Distribution ID: `E17LWIP3WVMZ0L`
-
 #### 9. フロントエンドのビルド & S3 へアップロード
 
 ```bash
-# ビルド
-VITE_COGNITO_USER_POOL_ID=ap-northeast-1_e898oVQCp \
-VITE_COGNITO_CLIENT_ID=58tafdqt6u8l6ua2do3dftven9 \
-VITE_API_BASE_URL=http://aws-memo-alb-1788609582.ap-northeast-1.elb.amazonaws.com \
+# ビルド（環境変数は .env を参照）
 npm run build --prefix frontend
 
-# S3 へアップロード
-aws s3 sync frontend/dist s3://aws-memo-frontend-975050183368 \
+# S3 へアップロード（<s3-bucket> は CloudFormation の Output を確認）
+aws s3 sync frontend/dist s3://<s3-bucket> \
   --delete \
   --region ap-northeast-1
 ```
@@ -253,8 +232,9 @@ aws s3 sync frontend/dist s3://aws-memo-frontend-975050183368 \
 #### 10. CloudFront キャッシュ削除（デプロイ後）
 
 ```bash
+# <distribution-id> は CloudFormation の Output を確認
 aws cloudfront create-invalidation \
-  --distribution-id E17LWIP3WVMZ0L \
+  --distribution-id <distribution-id> \
   --paths "/*" \
   --region ap-northeast-1
 ```
@@ -264,12 +244,10 @@ aws cloudfront create-invalidation \
 ### 動作確認
 
 ```bash
-# ALB ヘルスチェック
-curl http://aws-memo-alb-1788609582.ap-northeast-1.elb.amazonaws.com/health
+# ALB ヘルスチェック（<alb-dns> は CloudFormation の Output を確認）
+curl http://<alb-dns>/health
 # → {"status":"ok"}
 ```
-
-フロントエンド: https://d36dhlgyn71g4.cloudfront.net
 
 ---
 
