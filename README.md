@@ -36,224 +36,130 @@ GitHub → GitHub Actions → ECR → ECS Fargate (FastAPI)
 
 ```
 aws-memo/
-├── frontend/          # React + TypeScript
-├── backend/           # FastAPI
-├── infra/             # CloudFormation テンプレート
-│   ├── vpc.yml        # VPC・サブネット・IGW
-│   ├── cognito.yml    # Cognito User Pool
-│   ├── rds.yml        # RDS PostgreSQL
-│   └── ecs.yml        # ECS Fargate・ALB
-└── .github/workflows/
-    ├── frontend.yml   # S3へのデプロイ
-    └── backend.yml    # ECR→ECSへのデプロイ
+├── frontend/              # React + TypeScript
+├── backend/               # FastAPI
+├── infra/                 # CloudFormation テンプレート
+│   ├── vpc.yml            # VPC・サブネット・IGW
+│   ├── cognito.yml        # Cognito User Pool
+│   ├── rds.yml            # RDS PostgreSQL
+│   ├── ecr.yml            # ECR リポジトリ
+│   ├── ecs.yml            # ECS Fargate・ALB
+│   └── s3.yml             # S3・CloudFront
+├── .github/workflows/
+│   ├── frontend.yml       # S3へのデプロイ
+│   └── backend.yml        # ECR→ECSへのデプロイ
+├── docker-compose.yml     # ローカル開発環境
+├── .env.example           # 環境変数サンプル
+└── architecture.drawio    # アーキテクチャ構成図
 ```
 
 ## セットアップ手順
 
-### 1. インフラのデプロイ（CloudFormation）
+### 1. ローカル開発
 
 ```bash
-# VPC
-aws cloudformation deploy \
-  --template-file infra/vpc.yml \
-  --stack-name aws-memo-vpc
-
-# Cognito
-aws cloudformation deploy \
-  --template-file infra/cognito.yml \
-  --stack-name aws-memo-cognito
-
-# RDS
-aws cloudformation deploy \
-  --template-file infra/rds.yml \
-  --stack-name aws-memo-rds \
-  --parameter-overrides DBPassword=<your-password>
-
-# ECS (初回はECRにイメージをpushしてから)
-aws cloudformation deploy \
-  --template-file infra/ecs.yml \
-  --stack-name aws-memo-ecs \
-  --parameter-overrides ECRImageUri=<ecr-image-uri> DBPassword=<your-password> \
-  --capabilities CAPABILITY_IAM
-```
-
-### 2. GitHub Secrets の設定
-
-| Secret名 | 説明 |
-|---|---|
-| AWS_ACCESS_KEY_ID | AWS アクセスキー |
-| AWS_SECRET_ACCESS_KEY | AWS シークレットキー |
-| DB_PASSWORD | RDS パスワード |
-| COGNITO_USER_POOL_ID | Cognito User Pool ID |
-| COGNITO_CLIENT_ID | Cognito Client ID |
-| API_BASE_URL | ALBのDNS名 |
-| S3_BUCKET_NAME | フロントエンド用S3バケット名 |
-| CLOUDFRONT_DISTRIBUTION_ID | CloudFrontディストリビューションID |
-
-### 3. ローカル開発
-
-```bash
-# バックエンド
-cd backend
 cp .env.example .env  # 環境変数を設定
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-
-# フロントエンド
-cd frontend
-cp .env.example .env  # 環境変数を設定
-npm install
-npm run dev
-```
-
-## CI/CD フロー
-
-- `main`ブランチへのpushで自動デプロイ
-- `backend/`配下の変更 → ECRにイメージpush → ECSタスク更新
-- `frontend/`配下の変更 → S3にビルド成果物をsync → CloudFrontキャッシュ削除
-
-## 実施済み内容
-
-### ローカル開発環境（Docker Compose）
-
-```bash
-# 起動
 docker compose up --build
-
-# 停止
-docker compose down
 ```
 
-アクセス先:
-- フロントエンド: http://localhost:5173
-- バックエンド API: http://localhost:8000
-- DB: localhost:5433 (postgres/postgres)
+| サービス | URL |
+|---|---|
+| フロントエンド | http://localhost:5173 |
+| バックエンド API | http://localhost:8000 |
+| DB | localhost:5433 (postgres/postgres) |
 
----
+### 2. AWSインフラのデプロイ（CloudFormation）
 
-### AWSインフラのデプロイ（CloudFormation）
-
-#### 1. VPC
-
-```bash
-aws cloudformation deploy \
-  --template-file infra/vpc.yml \
-  --stack-name aws-memo-vpc \
-  --region ap-northeast-1
-```
-
-#### 2. Cognito
+依存関係の順にデプロイする。
 
 ```bash
-aws cloudformation deploy \
-  --template-file infra/cognito.yml \
-  --stack-name aws-memo-cognito \
-  --region ap-northeast-1
-```
+# 1. VPC
+aws cloudformation deploy --template-file infra/vpc.yml --stack-name aws-memo-vpc --region ap-northeast-1
 
-#### 3. RDS
+# 2. Cognito
+aws cloudformation deploy --template-file infra/cognito.yml --stack-name aws-memo-cognito --region ap-northeast-1
 
-```bash
-aws cloudformation deploy \
-  --template-file infra/rds.yml \
-  --stack-name aws-memo-rds \
-  --region ap-northeast-1 \
+# 3. RDS
+aws cloudformation deploy --template-file infra/rds.yml --stack-name aws-memo-rds --region ap-northeast-1 \
   --parameter-overrides DBPassword=<your-password>
-```
 
-#### 4. ECR
+# 4. ECR
+aws cloudformation deploy --template-file infra/ecr.yml --stack-name aws-memo-ecr --region ap-northeast-1
 
-```bash
-aws cloudformation deploy \
-  --template-file infra/ecr.yml \
-  --stack-name aws-memo-ecr \
-  --region ap-northeast-1
-```
+# ※ ECS デプロイ前にバックエンドイメージを ECR へプッシュする（手順 3 参照）
 
-#### 5. バックエンドイメージのビルド & ECR へのプッシュ
-
-```bash
-# ECR ログイン（<account-id> は自身の AWS アカウント ID）
-aws ecr get-login-password --region ap-northeast-1 \
-  | docker login --username AWS --password-stdin \
-    <account-id>.dkr.ecr.ap-northeast-1.amazonaws.com
-
-# linux/amd64 でビルドしてプッシュ（ECS Fargate 要件）
-docker buildx build \
-  --platform linux/amd64 \
-  --provenance=false \
-  -t <account-id>.dkr.ecr.ap-northeast-1.amazonaws.com/aws-memo-backend:latest \
-  --push \
-  ./backend
-```
-
-#### 6. ECS
-
-```bash
-aws cloudformation deploy \
-  --template-file infra/ecs.yml \
-  --stack-name aws-memo-ecs \
-  --region ap-northeast-1 \
+# 5. ECS（ALB含む）
+aws cloudformation deploy --template-file infra/ecs.yml --stack-name aws-memo-ecs --region ap-northeast-1 \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
     ECRImageUri=<account-id>.dkr.ecr.ap-northeast-1.amazonaws.com/aws-memo-backend:latest \
     DBPassword=<your-password>
+
+# 6. S3 + CloudFront
+aws cloudformation deploy --template-file infra/s3.yml --stack-name aws-memo-s3 --region ap-northeast-1
 ```
 
-#### 7. ECS タスクの強制再デプロイ（イメージ更新時）
+### 3. バックエンドのビルド & デプロイ
 
 ```bash
-aws ecs update-service \
-  --cluster aws-memo-cluster \
-  --service aws-memo-service \
-  --force-new-deployment \
-  --region ap-northeast-1
+# ECR ログイン
+aws ecr get-login-password --region ap-northeast-1 \
+  | docker login --username AWS --password-stdin <account-id>.dkr.ecr.ap-northeast-1.amazonaws.com
+
+# ビルド & プッシュ（linux/amd64 指定が必要）
+docker buildx build --platform linux/amd64 --provenance=false \
+  -t <account-id>.dkr.ecr.ap-northeast-1.amazonaws.com/aws-memo-backend:latest --push ./backend
+
+# ECS を最新イメージで再デプロイ
+aws ecs update-service --cluster aws-memo-cluster --service aws-memo-service \
+  --force-new-deployment --region ap-northeast-1
 ```
 
----
-
-#### 8. S3 + CloudFront
+### 4. フロントエンドのビルド & デプロイ
 
 ```bash
-aws cloudformation deploy \
-  --template-file infra/s3.yml \
-  --stack-name aws-memo-s3 \
-  --region ap-northeast-1
-```
-
-#### 9. フロントエンドのビルド & S3 へアップロード
-
-```bash
-# ビルド（環境変数は .env を参照）
+# ビルド
+VITE_COGNITO_USER_POOL_ID=<user-pool-id> \
+VITE_COGNITO_CLIENT_ID=<client-id> \
+VITE_API_BASE_URL=http://<alb-dns> \
 npm run build --prefix frontend
 
-# S3 へアップロード（<s3-bucket> は CloudFormation の Output を確認）
-aws s3 sync frontend/dist s3://<s3-bucket> \
-  --delete \
-  --region ap-northeast-1
+# S3 へアップロード
+aws s3 sync frontend/dist s3://<s3-bucket> --delete --region ap-northeast-1
+
+# CloudFront キャッシュ削除
+aws cloudfront create-invalidation --distribution-id <distribution-id> --paths "/*"
 ```
 
-#### 10. CloudFront キャッシュ削除（デプロイ後）
+### 5. GitHub Secrets の設定
 
-```bash
-# <distribution-id> は CloudFormation の Output を確認
-aws cloudfront create-invalidation \
-  --distribution-id <distribution-id> \
-  --paths "/*" \
-  --region ap-northeast-1
-```
+リポジトリの **Settings → Secrets and variables → Actions** に登録する。
 
----
+| Secret名 | 説明 |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | AWS アクセスキー |
+| `AWS_SECRET_ACCESS_KEY` | AWS シークレットキー |
+| `COGNITO_USER_POOL_ID` | Cognito User Pool ID |
+| `COGNITO_CLIENT_ID` | Cognito Client ID |
+| `API_BASE_URL` | ALB の DNS 名（`http://...`） |
+| `ECR_URI` | ECR リポジトリ URI |
+| `ECS_CLUSTER` | ECS クラスター名 |
+| `ECS_SERVICE` | ECS サービス名 |
+| `S3_BUCKET` | フロントエンド用 S3 バケット名 |
+| `CF_DISTRIBUTION_ID` | CloudFront ディストリビューション ID |
 
 ### 動作確認
 
 ```bash
-# ALB ヘルスチェック（<alb-dns> は CloudFormation の Output を確認）
 curl http://<alb-dns>/health
 # → {"status":"ok"}
 ```
 
----
+## CI/CD フロー
+
+- `main` ブランチへの push で自動デプロイ（手動実行も可）
+- `backend/` 配下の変更 → ECR にイメージ push → ECS タスク更新
+- `frontend/` 配下の変更 → S3 にビルド成果物を sync → CloudFront キャッシュ削除
 
 ## 改善点
 
@@ -282,6 +188,6 @@ curl http://<alb-dns>/health
 
 | 項目 | 現状 | 推奨対応 |
 |---|---|---|
-| CI/CD | 未設定 | GitHub Actions でプッシュ時に自動ビルド・デプロイ |
+| CI/CD | GitHub Actions で実装済み | OIDC による認証に移行してアクセスキーを不要にする |
 | フロントエンドのバンドルサイズ | 1.3 MB（警告あり） | dynamic import で code splitting を実施 |
 | ログ管理 | CloudWatch Logs のみ | X-Ray によるトレーシングや CloudWatch アラームの設定 |
