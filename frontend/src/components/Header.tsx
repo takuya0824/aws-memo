@@ -2,7 +2,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
 export default function Header() {
-  const { logout } = useAuth()
+  const { logout, email } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = () => {
@@ -16,6 +16,7 @@ export default function Header() {
         AWS Memo
       </span>
       <div className="header-actions">
+        {email && <span className="header-email">{email}</span>}
         <button className="btn btn-primary btn-sm" onClick={() => navigate('/memos/new')}>
           + 新規作成
         </button>

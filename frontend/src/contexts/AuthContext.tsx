@@ -15,6 +15,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   token: string | null
+  email: string | null
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   signUp: (email: string, password: string) => Promise<void>
@@ -27,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [token, setToken] = useState<string | null>(null)
+  const [email, setEmail] = useState<string | null>(null)
 
   useEffect(() => {
     const user = userPool.getCurrentUser()
@@ -35,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!err && session?.isValid()) {
           setIsAuthenticated(true)
           setToken(session.getIdToken().getJwtToken())
+          setEmail(session.getIdToken().payload['email'] ?? null)
         }
         setIsLoading(false)
       })
@@ -51,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         onSuccess: (session) => {
           setIsAuthenticated(true)
           setToken(session.getIdToken().getJwtToken())
+          setEmail(session.getIdToken().payload['email'] ?? null)
           resolve()
         },
         onFailure: reject,
@@ -81,10 +85,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     userPool.getCurrentUser()?.signOut()
     setIsAuthenticated(false)
     setToken(null)
+    setEmail(null)
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, token, login, logout, signUp, confirmSignUp }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, token, email, login, logout, signUp, confirmSignUp }}>
       {children}
     </AuthContext.Provider>
   )
