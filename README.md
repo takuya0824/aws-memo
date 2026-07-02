@@ -17,7 +17,7 @@ Markdown で書けるシンプルなメモアプリ。
 
 ## アーキテクチャ構成図
 
-<a href="./architecture.drawio" target="_blank">architecture.drawio</a> を <a href="https://app.diagrams.net/" target="_blank">draw.io</a> で開いて確認できます。
+[architecture.drawio](./architecture.drawio) を [draw.io](https://app.diagrams.net/) で開いて確認できます。
 
 ## インフラ構成
 
