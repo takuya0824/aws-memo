@@ -1,6 +1,6 @@
 # AWS Memo
 
-ZennやQiitaに投稿する前の技術記事下書きをMarkdownで管理するアプリ。
+Markdown で書けるシンプルなメモアプリ。
 
 ## 技術スタック
 
@@ -17,7 +17,7 @@ ZennやQiitaに投稿する前の技術記事下書きをMarkdownで管理する
 
 ## アーキテクチャ構成図
 
-[architecture.drawio](./architecture.drawio) を [draw.io](https://app.diagrams.net/) で開いて確認できます。
+<a href="./architecture.drawio" target="_blank">architecture.drawio</a> を <a href="https://app.diagrams.net/" target="_blank">draw.io</a> で開いて確認できます。
 
 ## インフラ構成
 
