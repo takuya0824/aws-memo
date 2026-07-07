@@ -2,6 +2,10 @@
 
 Markdown で書けるシンプルなメモアプリ。
 
+## デモ
+
+https://d36dhlgyn71g4.cloudfront.net
+
 ## 技術スタック
 
 | レイヤー | 技術 |
