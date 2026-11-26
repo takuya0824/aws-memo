@@ -1,79 +1,79 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+このファイルは、このリポジトリで作業する Claude Code（claude.ai/code）向けの案内です。
 
-## Project overview
+## プロジェクトの概要
 
-AWS Memo — a Markdown memo app. React + TypeScript frontend, FastAPI backend, RDS PostgreSQL, Cognito auth, deployed on ECS Fargate behind CloudFront/S3, provisioned via CloudFormation.
+AWS Memo — Markdown で書けるメモアプリ。フロントエンドは React + TypeScript、バックエンドは FastAPI、DB は RDS PostgreSQL、認証は Cognito。CloudFront / S3 の後ろの ECS Fargate にデプロイし、インフラは CloudFormation で管理している。
 
-## Common commands
+## よく使うコマンド
 
-### Local development (Docker)
+### ローカル開発（Docker）
 
 ```bash
-cp .env.example .env       # set env vars first
+cp .env.example .env       # 先に環境変数を設定する
 docker compose up --build
 ```
 
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8000
-- DB: localhost:5433 (postgres/postgres)
+- フロントエンド: http://localhost:5173
+- バックエンド API: http://localhost:8000
+- DB: localhost:5433（postgres/postgres）
 
-### Backend (from `backend/`)
+### バックエンド（`backend/` で実行）
 
 ```bash
 pip install -r requirements.txt
-uvicorn app.main:app --reload           # run API locally (needs DATABASE_URL, COGNITO_* env vars)
-pytest tests/ -v                        # run all tests
-pytest tests/test_memos.py -v           # run a single test file
-pytest tests/test_memos.py::test_name -v  # run a single test
+uvicorn app.main:app --reload           # API をローカルで起動（DATABASE_URL と COGNITO_* の環境変数が必要）
+pytest tests/ -v                        # すべてのテストを実行
+pytest tests/test_memos.py -v           # 1 ファイルだけ実行
+pytest tests/test_memos.py::test_name -v  # 1 つのテストだけ実行
 ```
 
-Tests use SQLite (`test.db`) and override both `get_db` and `get_current_user` (see `tests/conftest.py`), so no live DB or Cognito connection is needed to run them.
+テストは SQLite（`test.db`）を使い、`get_db` と `get_current_user` の両方を差し替えている（`tests/conftest.py` を参照）。そのため、実際の DB や Cognito に接続しなくてもテストを実行できる。
 
-### Frontend (from `frontend/`)
+### フロントエンド（`frontend/` で実行）
 
 ```bash
 npm install
-npm run dev        # Vite dev server, proxies /api to API_TARGET (default http://localhost:8000)
-npm run build       # tsc typecheck + vite build
+npm run dev        # Vite の開発サーバー。/api を API_TARGET（既定は http://localhost:8000）へ転送する
+npm run build       # tsc の型チェック + vite build
 npm run preview
 ```
 
-## Architecture
+## アーキテクチャ
 
-**Request flow (prod):** CloudFront serves the built React app from S3 and also proxies `/api/*` to an ALB in front of ECS Fargate (running the FastAPI container), which talks to RDS PostgreSQL. Cognito issues the JWT used for API auth. This is why the frontend backend calls use relative paths (`/api/...`) instead of an absolute base URL — both prod (CloudFront) and local dev (Vite proxy in `vite.config.ts`, target `API_TARGET`) route `/api` to the backend transparently.
+**リクエストの流れ（本番）:** CloudFront が S3 からビルド済みの React アプリを配信し、あわせて `/api/*` を ECS Fargate（FastAPI のコンテナ）の前にある ALB へ転送する。FastAPI は RDS PostgreSQL に接続する。API の認証には Cognito が発行する JWT を使う。フロントエンドからバックエンドへの呼び出しが絶対 URL ではなく相対パス（`/api/...`）になっているのはこのため。本番（CloudFront）でもローカル開発（`vite.config.ts` の Vite の proxy、転送先は `API_TARGET`）でも、`/api` はそのままバックエンドに届く。
 
-**Backend (`backend/app/`):**
-- `main.py` — FastAPI app setup, CORS, mounts `routers/memos.py` under `/api/memos`, `Base.metadata.create_all` runs on startup (no migration tool — schema changes are applied directly via SQLAlchemy models).
-- `auth.py` — `get_current_user` dependency: fetches Cognito JWKS, verifies the bearer JWT, returns the Cognito `sub` as the user id. Every memo endpoint depends on this, and every query is scoped by `user_id` — there is no admin/cross-user access.
-- `models.py` / `schemas.py` — single `Memo` SQLAlchemy model; Pydantic schemas split into `MemoCreate`/`MemoUpdate`/`MemoResponse`.
-- `config.py` — `pydantic-settings` `Settings`, reads from `.env` (`database_url`, `cognito_user_pool_id`, `cognito_client_id`, `cognito_region`). Required at import time — the app will fail to start without them (tests set these as env vars before import, see `conftest.py`).
-- `routers/memos.py` — CRUD for memos, all filtered by the authenticated `user_id`.
+**バックエンド（`backend/app/`）:**
+- `main.py` — FastAPI アプリの設定、CORS、`routers/memos.py` を `/api/memos` にマウント。起動時に `Base.metadata.create_all` を実行する（マイグレーションツールはなく、スキーマの変更は SQLAlchemy のモデルから直接反映される）。
+- `auth.py` — 依存関数 `get_current_user`。Cognito の JWKS を取得して Bearer の JWT を検証し、Cognito の `sub` をユーザー ID として返す。すべてのメモのエンドポイントがこれに依存し、すべてのクエリが `user_id` で絞り込まれる。管理者向けの、ユーザーをまたいだアクセスはない。
+- `models.py` / `schemas.py` — SQLAlchemy のモデルは `Memo` の 1 つだけ。Pydantic のスキーマは `MemoCreate` / `MemoUpdate` / `MemoResponse` に分かれている。
+- `config.py` — `pydantic-settings` の `Settings`。`.env` から読む（`database_url`、`cognito_user_pool_id`、`cognito_client_id`、`cognito_region`）。import の時点で必須なので、これらがないとアプリは起動しない（テストでは import の前に環境変数として設定している。`conftest.py` を参照）。
+- `routers/memos.py` — メモの CRUD。すべて認証済みの `user_id` で絞り込む。
 
-**Frontend (`frontend/src/`):**
-- `contexts/AuthContext.tsx` — wraps `amazon-cognito-identity-js` directly (no Amplify). Owns the Cognito `CognitoUserPool`, session/token state, login/signUp/confirmSignUp/logout.
-- `hooks/useApi.ts` — returns an axios instance with the current Cognito ID token attached as `Authorization: Bearer`, memoized on `token`.
-- `App.tsx` — route-based code splitting via `React.lazy`; `PrivateRoute` gates memo pages behind `isAuthenticated`.
-- `pages/` — `Login`, `Register`, `Confirm` (Cognito signup flow) and `MemoList`/`MemoEditor` (the memo CRUD UI, using `@uiw/react-md-editor`).
+**フロントエンド（`frontend/src/`）:**
+- `contexts/AuthContext.tsx` — `amazon-cognito-identity-js` を直接使う（Amplify は使っていない）。Cognito の `CognitoUserPool`、セッションとトークンの状態、login / signUp / confirmSignUp / logout を持つ。
+- `hooks/useApi.ts` — 現在の Cognito の ID トークンを `Authorization: Bearer` に付けた axios のインスタンスを返す。`token` が変わったときだけ作り直す。
+- `App.tsx` — `React.lazy` による画面ごとのコード分割。`PrivateRoute` で、メモの画面を `isAuthenticated` のときだけ表示する。
+- `pages/` — `Login`、`Register`、`Confirm`（Cognito の新規登録の流れ）と、`MemoList` / `MemoEditor`（メモの CRUD の画面。`@uiw/react-md-editor` を使用）。
 
-**Infra (`infra/*.yml`, CloudFormation):** deployed in dependency order — `vpc` → `cognito` → `rds` → `ecr` → (push backend image) → `ecs` (includes ALB) → `s3` (includes CloudFront). See README for exact `aws cloudformation deploy` commands and required parameters/secrets.
+**インフラ（`infra/*.yml`、CloudFormation）:** 依存関係の順にデプロイする — `vpc` → `cognito` → `rds` → `ecr` →（バックエンドのイメージを push）→ `ecs`（ALB を含む）→ `s3`（CloudFront を含む）。`aws cloudformation deploy` の具体的なコマンドと、必要なパラメータ・Secrets は README を参照。
 
-**CI/CD (`.github/workflows/`):** path-filtered — changes under `backend/` trigger `backend.yml` (run pytest, build/push image to ECR, force ECS redeployment, wait for stability); changes under `frontend/` trigger `frontend.yml` (build, sync to S3, invalidate CloudFront). Deploys only run on push to `main`; on PRs to `main` / `develop`, `backend.yml` runs only the pytest job and `frontend.yml` only builds. `branch-policy.yml` checks PR direction and branch names on every PR to `main` / `develop`.
+**CI/CD（`.github/workflows/`）:** パスで絞り込んでいる。`backend/` 以下の変更で `backend.yml` が動き（pytest の実行、ECR へのイメージの build / push、ECS の強制再デプロイ、安定するまで待機）、`frontend/` 以下の変更で `frontend.yml` が動く（ビルド、S3 への sync、CloudFront のキャッシュ削除）。デプロイは main への push（または main を選んだ手動実行）のときだけ。main / develop 向けの PR では、`backend.yml` は pytest のジョブだけ、`frontend.yml` はビルドだけを実行する。`branch-policy.yml` は、main / develop 向けのすべての PR で、PR の向きとブランチ名を検査する。
 
-## Branch workflow
+## ブランチ運用
 
-Follows the user-level `git-branch-flow` skill (read it before any branch, commit, push or PR work):
-- `main` = production, `develop` = staging. Never commit or push to either directly; both are protected by GitHub rulesets (PR required, no force push, no deletion).
-- Work branches are cut from `develop`: `feature/<issue>-<kebab-description>` or `fix/<issue>-<kebab-description>` (e.g. `feature/12-add-memo-search`), PR'd into `develop`.
-- Release = PR `develop` → `main`. Urgent production fixes = `hotfix/*` cut from `main`, PR'd into `main` and then into `develop`.
-- Commit messages start with 【追加】【修正】【更新】【削除】【リファクタ】【ドキュメント】【設定】【テスト】.
-- Use the user-level `auto-pr` skill to commit, push and open PRs.
+ユーザー全体の `git-branch-flow` スキルに従う（ブランチ・コミット・push・PR の作業の前に読む）:
+- `main` = 本番、`develop` = ステージング。どちらにも直接コミット・push しない。どちらも GitHub のルールセットで保護している（PR 必須、force push 禁止、削除禁止）。
+- 作業ブランチは `develop` から切る: `feature/<Issue番号>-<内容（ケバブケース）>` または `fix/<Issue番号>-<内容>`（例: `feature/12-add-memo-search`）。PR 先は `develop`。
+- リリース = `develop` → `main` の PR。本番の緊急修正 = `main` から `hotfix/*` を切り、`main` へ PR を出したあと `develop` にも PR を出す。
+- コミットメッセージは【追加】【修正】【更新】【削除】【リファクタ】【ドキュメント】【設定】【テスト】のどれかで始める。
+- コミット・push・PR の作成には、ユーザー全体の `auto-pr` スキルを使う。
 
-## Known compromises (see README "改善点" for full list)
+## 意図的な妥協点（全体は README の「改善点」を参照）
 
-These are intentional simplifications for this project, not oversights — don't silently "fix" them without flagging it, since some (e.g. RDS security group CIDR) trade correctness for avoiding circular CloudFormation dependencies:
-- ALB is HTTP-only (no ACM cert); CloudFront proxies HTTP to avoid mixed content.
-- DB password passed as a plain CloudFormation parameter (not Secrets Manager).
-- Backend CORS is `allow_origins=["*"]`.
-- ECS tasks run in public subnets with `DesiredCount: 1`; RDS is single-AZ.
+これらは見落としではなく、このプロジェクトのために意図して単純にしたもの。断りなく「直さない」こと。中には（RDS のセキュリティグループの CIDR など）、CloudFormation の循環依存を避けるために正しさを犠牲にしているものもある:
+- ALB は HTTP のみ（ACM の証明書なし）。混在コンテンツを避けるため、CloudFront が HTTP で転送している。
+- DB のパスワードは、CloudFormation のパラメータとして平文で渡している（Secrets Manager は使っていない）。
+- バックエンドの CORS は `allow_origins=["*"]`。
+- ECS のタスクはパブリックサブネットで `DesiredCount: 1`。RDS はシングル AZ。
