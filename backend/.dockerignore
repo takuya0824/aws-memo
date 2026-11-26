@@ -1,0 +1,9 @@
+# 本番のイメージに入れないもの
+tests/
+requirements-dev.txt
+test.db
+.pytest_cache/
+__pycache__/
+*.pyc
+.env
+.env.*

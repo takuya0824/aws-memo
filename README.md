@@ -2,22 +2,31 @@
 
 Markdown で書けるシンプルなメモアプリ。
 
-## デモ
+![スクリーンショット](./docs/images/screenshot.png)
 
-https://d36dhlgyn71g4.cloudfront.net
+## 背景・目的
+
+<なぜ作ったか、何を学ぶためか を2〜3行で>
+
+## 主な機能
+
+- メールアドレスでのユーザー登録（確認コードによる認証）・ログイン
+- Markdown エディタでメモを作成・編集・削除
+- メモを「下書き」「投稿済み」で管理し、一覧で絞り込み
+- 自分のメモだけが見える（ユーザーごとにデータを分離）
 
 ## 技術スタック
 
-| レイヤー | 技術 |
-|---|---|
-| フロントエンド | React + TypeScript + Vite |
-| バックエンド | Python / FastAPI |
-| データベース | RDS PostgreSQL |
-| 認証 | Amazon Cognito |
-| ホスティング | S3 + CloudFront |
-| コンテナ | ECS Fargate + ECR |
-| IaC | CloudFormation |
-| CI/CD | GitHub Actions |
+| レイヤー | 技術 | バージョン |
+|---|---|---|
+| フロントエンド | React + TypeScript + Vite | React 18 / TypeScript 5 / Vite 5 |
+| バックエンド | Python / FastAPI | Python 3.12 / FastAPI 0.109 / SQLAlchemy 2.0 |
+| データベース | RDS PostgreSQL | 15（ローカルは 16） |
+| 認証 | Amazon Cognito | amazon-cognito-identity-js 6 |
+| ホスティング | S3 + CloudFront | - |
+| コンテナ | ECS Fargate + ECR | - |
+| IaC | CloudFormation | - |
+| CI/CD | GitHub Actions | - |
 
 ## アーキテクチャ構成図
 
@@ -42,6 +51,7 @@ GitHub → GitHub Actions → ECR → ECS Fargate (FastAPI)
 aws-memo/
 ├── frontend/              # React + TypeScript
 ├── backend/               # FastAPI
+│   └── tests/             # pytest テスト
 ├── infra/                 # CloudFormation テンプレート
 │   ├── vpc.yml            # VPC・サブネット・IGW
 │   ├── cognito.yml        # Cognito User Pool
@@ -57,6 +67,15 @@ aws-memo/
 └── architecture.drawio    # アーキテクチャ構成図
 ```
 
+## 必要な環境
+
+| ツール | バージョン |
+|---|---|
+| Docker / Docker Compose | Compose v2（`docker compose` コマンド） |
+| Node.js | 20（フロントエンドを Docker 外でビルドする場合） |
+| Python | 3.12（テストを Docker 外で実行する場合） |
+| AWS CLI | v2（AWS へデプロイする場合） |
+
 ## セットアップ手順
 
 ### 1. ローカル開発
@@ -71,6 +90,28 @@ docker compose up --build
 | フロントエンド | http://localhost:5173 |
 | バックエンド API | http://localhost:8000 |
 | DB | localhost:5433 (postgres/postgres) |
+
+#### 環境変数
+
+`.env` に設定する。
+
+| 変数名 | 説明 | 例 |
+|---|---|---|
+| `DATABASE_URL` | バックエンドが接続する DB の URL | `postgresql://postgres:postgres@db:5432/awsmemo` |
+| `COGNITO_USER_POOL_ID` | Cognito User Pool ID（フロントエンド・バックエンドの両方で使用） | `ap-northeast-1_XXXXXXXXX` |
+| `COGNITO_CLIENT_ID` | Cognito アプリクライアント ID（フロントエンド・バックエンドの両方で使用） | `XXXXXXXXXXXXXXXXXXXXXXXXXX` |
+| `COGNITO_REGION` | Cognito のリージョン | `ap-northeast-1` |
+| `POSTGRES_PASSWORD` | ローカル DB のパスワード（現状 `docker-compose.yml` では固定値 `postgres` を使っており未参照） | `postgres` |
+
+#### テスト
+
+```bash
+cd backend
+pip install -r requirements-dev.txt  # テスト用の依存（pytest）も入る
+pytest tests/ -v
+```
+
+SQLite を使い、認証もテスト用に差し替えているため、DB や Cognito の準備は不要。
 
 ### 2. AWSインフラのデプロイ（CloudFormation）
 
@@ -195,3 +236,7 @@ curl http://<alb-dns>/health
 | CI/CD | GitHub Actions で実装済み | OIDC による認証に移行してアクセスキーを不要にする |
 | フロントエンドのバンドルサイズ | 1.3 MB（警告あり） | dynamic import で code splitting を実施 |
 | ログ管理 | CloudWatch Logs のみ | X-Ray によるトレーシングや CloudWatch アラームの設定 |
+
+## ライセンス
+
+MIT License。詳細は [LICENSE](./LICENSE) を参照。

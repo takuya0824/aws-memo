@@ -6,13 +6,43 @@ on:
       - main
     paths:
       - "backend/**"
+  # PR では変更の場所に関係なく毎回テストする（test を必須チェックにしているため。
+  # paths で絞ると、backend を触らない PR で test が報告されずマージできなくなる）
+  pull_request:
+    branches:
+      - main
+      - develop
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements-dev.txt
+
+      - name: Run tests
+        run: pytest backend/tests/ -v
+        working-directory: .
+
   deploy:
+    needs: test
+    # PR ではテストだけ行い、デプロイしない。手動実行でも main 以外はデプロイしない
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

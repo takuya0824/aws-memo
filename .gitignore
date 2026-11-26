@@ -4,3 +4,15 @@ __pycache__/
 *.pyc
 .DS_Store
 dist/
+
+# テストが作るファイル
+backend/test.db
+
+# 機密情報を含みやすいファイル
+.env.*
+!.env.example
+*.pem
+*.key
+*.tfstate
+*.tfstate.backup
+.claude/settings.local.json
