@@ -22,7 +22,7 @@ docker compose up --build
 ### バックエンド（`backend/` で実行）
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt     # テスト用の依存も入る（本番のイメージは requirements.txt だけを使う）
 uvicorn app.main:app --reload           # API をローカルで起動（DATABASE_URL と COGNITO_* の環境変数が必要）
 pytest tests/ -v                        # すべてのテストを実行
 pytest tests/test_memos.py -v           # 1 ファイルだけ実行
