@@ -6,13 +6,41 @@ on:
       - main
     paths:
       - "backend/**"
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - "backend/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run tests
+        run: pytest backend/tests/ -v
+        working-directory: .
+
   deploy:
+    needs: test
+    # PR ではテストだけ行い、デプロイしない。手動実行でも main 以外はデプロイしない
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
