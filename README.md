@@ -2,12 +2,6 @@
 
 Markdown で書けるシンプルなメモアプリ。
 
-![スクリーンショット](./docs/images/screenshot.png)
-
-## 背景・目的
-
-<なぜ作ったか、何を学ぶためか を2〜3行で>
-
 ## 主な機能
 
 - メールアドレスでのユーザー登録（確認コードによる認証）・ログイン
@@ -30,20 +24,7 @@ Markdown で書けるシンプルなメモアプリ。
 
 ## アーキテクチャ構成図
 
-[architecture.drawio](./architecture.drawio) を [draw.io](https://app.diagrams.net/) で開いて確認できます。
-
-## インフラ構成
-
-```
-GitHub → GitHub Actions → ECR → ECS Fargate (FastAPI)
-                       ↓
-                  CloudFormation (IaC管理)
-
-ユーザー → CloudFront → S3 (React)
-         → ALB → ECS Fargate (FastAPI) → RDS PostgreSQL
-                     ↑
-                  Cognito (JWT認証)
-```
+![アーキテクチャ構成図](./docs/images/architecture.png)
 
 ## ディレクトリ構成
 
@@ -64,7 +45,7 @@ aws-memo/
 │   └── backend.yml        # ECR→ECSへのデプロイ
 ├── docker-compose.yml     # ローカル開発環境
 ├── .env.example           # 環境変数サンプル
-└── architecture.drawio    # アーキテクチャ構成図
+└── docs/images/           # README の画像（アーキテクチャ構成図）
 ```
 
 ## 必要な環境
@@ -205,37 +186,6 @@ curl http://<alb-dns>/health
 - `main` ブランチへの push で自動デプロイ（手動実行も可）
 - `backend/` 配下の変更 → ECR にイメージ push → ECS タスク更新
 - `frontend/` 配下の変更 → S3 にビルド成果物を sync → CloudFront キャッシュ削除
-
-## 改善点
-
-今回の開発で複雑さを避けるために妥協した点。後続対応の参考として記載する。
-
-### セキュリティ
-
-| 項目 | 現状 | 推奨対応 |
-|---|---|---|
-| ALB が HTTP のみ | ポート80のみ、HTTPS なし | ACM で証明書を発行し ALB に HTTPS リスナーを追加。独自ドメインが必要 |
-| DBパスワードの管理 | CloudFormation パラメータで平文渡し | AWS Secrets Manager に格納し ECS タスクで動的取得 |
-| RDS のセキュリティグループ | VPC 全体の CIDR `10.0.0.0/16` を許可 | ECS セキュリティグループIDのみを許可（循環依存を避けるため妥協） |
-| CORS 設定 | バックエンドで `allow_origins=["*"]` | CloudFront ドメインのみに絞る |
-| WAF | 未設定 | CloudFront または ALB に AWS WAF を適用してボット・SQLi 対策 |
-
-### アーキテクチャ
-
-| 項目 | 現状 | 推奨対応 |
-|---|---|---|
-| ECS タスクのサブネット | パブリックサブネット配置 | プライベートサブネットに配置し NAT Gateway 経由でアウトバウンド通信 |
-| CloudFront → ALB 通信 | HTTP（混在コンテンツ回避のため CloudFront でプロキシ） | ALB を HTTPS 化して直接通信 |
-| RDS のマルチ AZ | `MultiAZ: false` | 本番運用では `true` にしてフェイルオーバー対応 |
-| ECS のタスク数 | `DesiredCount: 1` | 本番では 2 以上に増やし可用性を確保 |
-
-### 開発・運用
-
-| 項目 | 現状 | 推奨対応 |
-|---|---|---|
-| CI/CD | GitHub Actions で実装済み | OIDC による認証に移行してアクセスキーを不要にする |
-| フロントエンドのバンドルサイズ | 1.3 MB（警告あり） | dynamic import で code splitting を実施 |
-| ログ管理 | CloudWatch Logs のみ | X-Ray によるトレーシングや CloudWatch アラームの設定 |
 
 ## ライセンス
 
