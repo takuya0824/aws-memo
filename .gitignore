@@ -16,3 +16,7 @@ backend/test.db
 *.tfstate
 *.tfstate.backup
 .claude/settings.local.json
+
+# 個人用のメモ・Claude Code 向けの案内（git で管理しない）
+notes/
+CLAUDE.md
